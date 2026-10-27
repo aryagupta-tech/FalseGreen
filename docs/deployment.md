@@ -28,6 +28,10 @@ called out.
 - `VERCEL_SANDBOX_RUNTIME` is read into config but is not used by the sandbox
   runner. The snapshot fixes the runtime. The provisioning script reads
   `FG_SANDBOX_RUNTIME` instead.
+- The sandbox runner tears each sandbox down with `delete({ deleteOrphanSnapshots:
+  true })`. Stopping a sandbox creates an automatic snapshot the size of the
+  base image, and a few scans exhaust the Hobby snapshot quota. Deletion avoids
+  that entirely. The pinned provisioning snapshot is never deleted.
 - A cancel request is a durable flag. The current execution is allowed to finish
   so its temp directory or sandbox is cleaned up; the next tick marks the run
   `cancelled` and releases the job slot.
