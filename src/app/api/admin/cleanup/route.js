@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { Snapshot } from "@vercel/sandbox";
+import { getVercelOidcToken } from "@vercel/oidc";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,7 +22,9 @@ export async function POST(request) {
   if (!projectId) return Response.json({ error: "no_project_id" }, { status: 500 });
 
   try {
-  const list = await Snapshot.list({ projectId, limit: 100 });
+  const token = await getVercelOidcToken();
+  const teamId = process.env.VERCEL_TEAM_ID || "arya-guptas-projects-a145dbd9";
+  const list = await Snapshot.list({ projectId, teamId, token, limit: 100 });
   const deleted = [];
   const failed = [];
   let kept = 0;
@@ -34,7 +37,7 @@ export async function POST(request) {
       continue;
     }
     try {
-      const handle = await Snapshot.get({ snapshotId: snapshot.id });
+      const handle = await Snapshot.get({ snapshotId: snapshot.id, teamId, token });
       await handle.delete();
       deleted.push(snapshot.id);
     } catch (error) {
