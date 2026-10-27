@@ -384,7 +384,7 @@ function runStatus(run) {
 
 function liveText(run, counts) {
   if (!run) {
-    return "No run yet. Each check runs the baseline, tests every generated mutant, and reports what the suite can distinguish.";
+    return "No run yet. Each check compares your tests against generated mutants.";
   }
   if (run.status === "queued") {
     return "Queued. Waiting for a worker to start the baseline.";
@@ -495,7 +495,9 @@ export default function RunProgress({ run }) {
                   <span className="phase-duration">{formatDuration(phase.durationMs)}</span>
                 ) : null}
               </div>
-              <p className="phase-detail">{phase.detail}</p>
+              {phase.status !== "pending" && phase.status !== "not_started" && phase.detail ? (
+                <p className="phase-detail">{phase.detail}</p>
+              ) : null}
             </div>
           </li>
         ))}

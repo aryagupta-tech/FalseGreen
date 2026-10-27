@@ -151,7 +151,6 @@ export default function Playground({ initialPreset = null, presets = [], publicC
 
   const runActive = Boolean(run) && isActiveStatus(run.status);
   const busy = submitting || runActive;
-  const currentPreset = presetList.find((preset) => preset?.id === presetId) ?? basePreset ?? null;
 
   const selectedMutation =
     (Array.isArray(run?.mutations) ? run.mutations : []).find(
@@ -438,27 +437,19 @@ export default function Playground({ initialPreset = null, presets = [], publicC
           <h1>FalseGreen</h1>
         </div>
         <p className="promise">Find the mistakes your passing tests would let through.</p>
-        <p className="topbar-meta">Vitest · one module</p>
       </header>
 
       <main>
         <div className="workspace">
           <form className="panel input-panel" onSubmit={handleSubmit} noValidate aria-labelledby="inputs-heading">
             <div className="panel-head">
-              <div>
-                <p className="eyebrow">Inputs</p>
-                <h2 id="inputs-heading">Playground</h2>
-              </div>
-              <span className="panel-meta">source.js · source.test.js</span>
+              <h2 id="inputs-heading">Playground</h2>
             </div>
 
             {presetList.length > 0 ? (
               <div className="preset-block">
                 <div className="field-head">
                   <span className="field-label">Preset</span>
-                  {currentPreset?.expectation ? (
-                    <span className="preset-expectation">Expected: {currentPreset.expectation}</span>
-                  ) : null}
                 </div>
                 <div className="preset-bar" role="group" aria-label="Preset">
                   {presetList.map((preset) => (
@@ -473,11 +464,7 @@ export default function Playground({ initialPreset = null, presets = [], publicC
                     </button>
                   ))}
                 </div>
-                <p className="preset-note">
-                  {currentPreset?.description ? `${currentPreset.description} ` : ""}
-                  Loading a preset replaces the requirement and both files. Editing any input and
-                  checking again starts a new run.
-                </p>
+                <p className="preset-note">Loading a preset replaces all inputs.</p>
               </div>
             ) : null}
 
@@ -489,7 +476,7 @@ export default function Playground({ initialPreset = null, presets = [], publicC
                 <ByteCounter value={requirement} max={limits.maxRequirementBytes} />
               </div>
               <p className="field-helper" id="requirement-helper">
-                The stated requirement is the only source of intent. Include edge cases.
+                The only source of intent.
               </p>
               <textarea
                 id="requirement"
@@ -527,8 +514,7 @@ export default function Playground({ initialPreset = null, presets = [], publicC
                 <ByteCounter value={source} max={limits.maxSourceBytes} />
               </div>
               <p className="field-helper" id="source-helper">
-                One self-contained ES module. Named synchronous exports only. No imports, default
-                exports, async or generators.
+                One ES module. Named synchronous exports. No imports.
               </p>
               <CodeEditor
                 value={source}
@@ -556,8 +542,7 @@ export default function Playground({ initialPreset = null, presets = [], publicC
                 <ByteCounter value={tests} max={limits.maxTestsBytes} />
               </div>
               <p className="field-helper" id="tests-helper">
-                Vitest. Import <code>./source.js</code> and use <code>test</code> or{" "}
-                <code>it</code>. Mocks are rejected.
+                Vitest. Import <code>./source.js</code>. Mocks are rejected.
               </p>
               <CodeEditor value={tests} onChange={setTests} ariaLabel="Test code, source.test.js" />
               {fieldErrors.tests ? (
@@ -633,7 +618,7 @@ export default function Playground({ initialPreset = null, presets = [], publicC
                 </p>
               ) : (
                 <p className="actions-note">
-                  Runs execute in a throwaway directory. Your code is not run for other visitors.
+                  Runs execute in a throwaway environment.
                 </p>
               )}
             </div>
@@ -685,13 +670,6 @@ export default function Playground({ initialPreset = null, presets = [], publicC
         <HowItWorks />
       </main>
 
-      <footer className="footer">
-        <span>
-          A surviving mutation means the tests cannot distinguish two versions. It is not proof of a
-          bug.
-        </span>
-        <span>One module and one Vitest file per check. Runs expire.</span>
-      </footer>
     </div>
   );
 }

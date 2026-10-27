@@ -215,11 +215,6 @@ export default function ScanSummary({ run }) {
             </span>
           </div>
 
-          <p className="summary-note">
-            Caught means an existing test failed on that mutant. Missed means every existing test still
-            passed. Timed out, execution error and untested are never counted as caught.
-          </p>
-
           {baseline && totalTests !== null ? (
             <div className="summary-foot">
               <span>

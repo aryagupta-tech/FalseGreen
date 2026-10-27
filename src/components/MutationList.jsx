@@ -52,13 +52,13 @@ function familyExplanation(mutation) {
 
   switch (mutation.family) {
     case "boundary":
-      return `The threshold comparison changed from ${operator} to ${replacement}. No existing test separates the inclusive and exclusive versions of the boundary, so the edge is not pinned down.`;
+      return `The boundary changed from ${operator} to ${replacement}. No test separates the inclusive and exclusive versions.`;
     case "comparison":
-      return `The comparison changed from ${operator} to ${replacement}, which reverses the direction. No existing test distinguishes the two directions, so this comparison is unverified.`;
+      return `The comparison reversed from ${operator} to ${replacement}. No test distinguishes the two directions.`;
     case "equality":
-      return `The equality check changed from ${operator} to ${replacement}. No existing test distinguishes equality from inequality here.`;
+      return `Equality changed from ${operator} to ${replacement}. No test distinguishes the two.`;
     case "logical":
-      return `The boolean operator changed from ${operator} to ${replacement}. No existing test distinguishes the two operators here.`;
+      return `The boolean operator changed from ${operator} to ${replacement}. No test distinguishes the two.`;
     default:
       return `The operator changed from ${operator} to ${replacement}. No existing test distinguishes the original from the mutant.`;
   }
@@ -70,10 +70,10 @@ function statusExplanation(mutation) {
   const replacement = mutation.replacement ?? "its alternative";
 
   if (status === "missed") {
-    return `The tests pass against both versions. ${familyExplanation(mutation)} A surviving mutation means the suite cannot distinguish the versions; it is not proof of a bug.`;
+    return `The tests pass against both versions. ${familyExplanation(mutation)} A surviving mutation is not proof of a bug.`;
   }
   if (status === "caught") {
-    return `At least one existing test failed against the mutant, so the suite distinguishes the change from ${operator} to ${replacement}.`;
+    return `An existing test failed against the mutant, so the suite distinguishes ${operator} from ${replacement}.`;
   }
   if (status === "timeout") {
     return `The suite did not finish within the execution limit against the mutant, so no comparison was made. The change from ${operator} to ${replacement} is unverified. A timeout is not counted as caught.`;

@@ -254,10 +254,6 @@ export default function RepairPanel({
             ) : (
               <p className="attempts-empty">No model attempt was recorded.</p>
             )}
-            <p className="attempts-note">
-              Up to {maxAttempts} model attempts. A failed validation is fed back into the next
-              attempt.
-            </p>
           </div>
 
           {proposal ? (
@@ -299,9 +295,6 @@ export default function RepairPanel({
               <pre className="code-block">
                 <code>{repair.generatedTest}</code>
               </pre>
-              <p className="generated-note">
-                Rendered from a fixed template. Model text only appears in the sanitized test title.
-              </p>
             </section>
           ) : null}
 
@@ -365,10 +358,6 @@ export default function RepairPanel({
                 The existing suite passes on the original and on the mutant. The proposed test
                 passes on the original, and the combined suite fails on the mutant at the proposed
                 assertion.
-              </p>
-              <p className="verdict-note">
-                This verifies one regression test. It does not change the source; downloads are
-                available below.
               </p>
             </div>
           ) : status === "mismatch" || verification?.status === "mismatch" ? (

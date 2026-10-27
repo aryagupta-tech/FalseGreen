@@ -285,11 +285,12 @@ describe("sandbox runner configuration and client contract", () => {
     ).rejects.toThrow(/VERCEL_SANDBOX_SNAPSHOT_ID/);
   });
 
-  test("uses the snapshot, deny-all network, filesystem, command and stop APIs", async () => {
+  test("uses the snapshot, deny-all network, filesystem, command and delete APIs", async () => {
     const createCalls = [];
     const writeCalls = [];
     const commandCalls = [];
     const mkdirCalls = [];
+    const deleteCalls = [];
     let stopCalls = 0;
 
     const json = {
@@ -324,6 +325,9 @@ describe("sandbox runner configuration and client contract", () => {
           stdout: async () => "JSON report written",
           stderr: async () => "",
         };
+      },
+      delete: async (options) => {
+        deleteCalls.push(options);
       },
       stop: async () => {
         stopCalls += 1;
@@ -373,13 +377,21 @@ test("adds", () => expect(add(1, 2)).toBe(3));
       "/tmp/falsegreen/run/source.test.js",
     ]);
 
-    expect(commandCalls).toHaveLength(1);
-    expect(commandCalls[0]).toMatchObject({
+    expect(commandCalls).toHaveLength(2);
+    expect(commandCalls[0]).toMatchObject({ cmd: "ln", timeoutMs: 5000 });
+    expect(commandCalls[0].args).toEqual([
+      "-sfn",
+      "/opt/falsegreen/node_modules",
+      "/tmp/falsegreen/run/node_modules",
+    ]);
+
+    const vitestCall = commandCalls[1];
+    expect(vitestCall).toMatchObject({
       cmd: "node",
       cwd: "/tmp/falsegreen/run",
       timeoutMs: 5000,
     });
-    expect(commandCalls[0].args).toEqual([
+    expect(vitestCall.args).toEqual([
       "/opt/falsegreen/node_modules/vitest/vitest.mjs",
       "run",
       "--config",
@@ -388,16 +400,17 @@ test("adds", () => expect(add(1, 2)).toBe(3));
       "--outputFile=results.json",
       "--no-color",
     ]);
-    expect(commandCalls[0].env).toBeUndefined();
+    expect(vitestCall.env).toBeUndefined();
 
     expect(result.outcome).toBe("completed");
     expect(result.counts).toEqual({ total: 1, passed: 1, failed: 0, skipped: 0 });
     expect(result.exitCode).toBe(0);
-    expect(stopCalls).toBe(1);
+    expect(deleteCalls).toEqual([{ deleteOrphanSnapshots: true }]);
+    expect(stopCalls).toBe(0);
   });
 
-  test("stops the sandbox and reports command failures", async () => {
-    let stopCalls = 0;
+  test("deletes the sandbox and reports command failures", async () => {
+    const deleteCalls = [];
     const sandbox = {
       fs: {
         mkdir: async () => {},
@@ -409,8 +422,8 @@ test("adds", () => expect(add(1, 2)).toBe(3));
       runCommand: async () => {
         throw new Error("sandbox timed out");
       },
-      stop: async () => {
-        stopCalls += 1;
+      delete: async (options) => {
+        deleteCalls.push(options);
       },
     };
 
@@ -425,6 +438,6 @@ test("adds", () => expect(add(1, 2)).toBe(3));
     });
 
     expect(result.outcome).toBe("timeout");
-    expect(stopCalls).toBe(1);
+    expect(deleteCalls).toEqual([{ deleteOrphanSnapshots: true }]);
   });
 });

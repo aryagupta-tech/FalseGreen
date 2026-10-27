@@ -79,12 +79,16 @@ export function createSandboxRunner(config, deps = {}) {
         // Node resolves bare imports (vitest, vitest/config) by walking up
         // from the importing file, so the pinned dependencies must be visible
         // from the run directory.
-        await sandbox.runCommand({
-          cmd: "ln",
-          args: ["-sfn", "/opt/falsegreen/node_modules", `${RUN_DIR}/node_modules`],
-          timeoutMs: 5000,
-          signal,
-        });
+        try {
+          await sandbox.runCommand({
+            cmd: "ln",
+            args: ["-sfn", "/opt/falsegreen/node_modules", `${RUN_DIR}/node_modules`],
+            timeoutMs: 5000,
+            signal,
+          });
+        } catch {
+          // The suite will report the resolution failure if the link is unavailable.
+        }
 
         let command;
         try {

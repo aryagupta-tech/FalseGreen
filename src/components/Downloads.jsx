@@ -6,20 +6,14 @@ const FILES = [
   {
     name: "falsegreen.generated.test.js",
     href: "test",
-    label: "Regression test",
-    hint: "Vitest file for the verified assertion",
   },
   {
     name: "falsegreen.patch",
     href: "patch",
-    label: "Patch",
-    hint: "Adds the test file; does not modify source",
   },
   {
     name: "falsegreen.evidence.json",
     href: "evidence",
-    label: "Evidence",
-    hint: "Run record, proposal and verification matrix",
   },
 ];
 
@@ -47,11 +41,7 @@ export default function Downloads({ run }) {
   return (
     <section className="panel downloads" aria-labelledby="downloads-heading">
       <div className="panel-head">
-        <div>
-          <p className="eyebrow">Artifacts</p>
-          <h2 id="downloads-heading">Downloads</h2>
-        </div>
-        <span className="panel-meta">{enabled ? "Ready" : "Locked"}</span>
+        <h2 id="downloads-heading">Downloads</h2>
       </div>
 
       <div className="download-list">
@@ -65,12 +55,7 @@ export default function Downloads({ run }) {
               key={file.href}
             >
               <Glyph name="download" />
-              <span className="download-copy">
-                <span className="download-name">{file.name}</span>
-                <span className="download-hint">
-                  {file.label} · {file.hint}
-                </span>
-              </span>
+              <span className="download-name">{file.name}</span>
             </a>
           ) : (
             <button
@@ -81,20 +66,17 @@ export default function Downloads({ run }) {
               key={file.href}
             >
               <Glyph name="download" />
-              <span className="download-copy">
-                <span className="download-name">{file.name}</span>
-                <span className="download-hint">
-                  {file.label} · {file.hint}
-                </span>
-              </span>
+              <span className="download-name">{file.name}</span>
             </button>
           ),
         )}
       </div>
 
-      <p className="download-reason" id="download-reason">
-        {enabled ? "Generated during verification." : reason}
-      </p>
+      {!enabled ? (
+        <p className="download-reason" id="download-reason">
+          {reason}
+        </p>
+      ) : null}
     </section>
   );
 }
