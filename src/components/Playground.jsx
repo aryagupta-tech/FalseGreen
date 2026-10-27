@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import CodeEditor from "./CodeEditor";
+import CliSection from "./CliSection";
 import Downloads from "./Downloads";
 import HowItWorks from "./HowItWorks";
 import MutationList from "./MutationList";
@@ -115,7 +116,7 @@ function ByteCounter({ value, max }) {
   );
 }
 
-export default function Playground({ initialPreset = null, presets = [], publicConfig = {} }) {
+export default function Playground({ initialPreset = null, presets = [], publicConfig = {}, cliVersion }) {
   const presetList = Array.isArray(presets) ? presets : [];
   const basePreset = initialPreset ?? presetList[0] ?? null;
 
@@ -139,6 +140,8 @@ export default function Playground({ initialPreset = null, presets = [], publicC
   const submitRef = useRef(null);
   const runIdRef = useRef(null);
   const autoSelectedRun = useRef(null);
+  const sourceTabRef = useRef(null);
+  const testsTabRef = useRef(null);
 
   useEffect(() => {
     runIdRef.current = runId;
@@ -206,6 +209,22 @@ export default function Playground({ initialPreset = null, presets = [], publicC
     setTests("");
   }
 
+  function handleFileTabKeyDown(event) {
+    let next;
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      next = activeTab === "source" ? "tests" : "source";
+    } else if (event.key === "Home") {
+      next = "source";
+    } else if (event.key === "End") {
+      next = "tests";
+    } else {
+      return;
+    }
+    event.preventDefault();
+    setActiveTab(next);
+    (next === "source" ? sourceTabRef : testsTabRef).current?.focus();
+  }
+
   async function handleSubmit(event) {
     event?.preventDefault?.();
     if (busy) return;
@@ -234,7 +253,11 @@ export default function Playground({ initialPreset = null, presets = [], publicC
       if (submitSequence.current !== sequence) return;
 
       if (!response.ok) {
-        setSubmitError(normalizeApiError(response.status, payload));
+        const error = normalizeApiError(response.status, payload);
+        setSubmitError(error);
+        const fields = fieldErrorsFrom(error);
+        if (fields.source) setActiveTab("source");
+        else if (fields.tests) setActiveTab("tests");
         return;
       }
 
@@ -439,6 +462,7 @@ export default function Playground({ initialPreset = null, presets = [], publicC
         </div>
         <nav className="topnav" aria-label="Links">
           <a href="#how">How it works</a>
+          <a href="#cli">CLI</a>
           <a
             href="https://github.com/aryagupta-tech/falsegreen"
             target="_blank"
@@ -482,6 +506,9 @@ export default function Playground({ initialPreset = null, presets = [], publicC
           <span className="scope-label">What it takes</span>
           <p>One ES module. One Vitest file. Named synchronous exports.</p>
           <p className="scope-note">Paste your original prompt as the requirement.</p>
+          <a className="hero-cli-link" href="#cli">
+            Prefer your terminal? Use the CLI <span aria-hidden="true">↓</span>
+          </a>
         </aside>
       </section>
 
@@ -527,18 +554,28 @@ export default function Playground({ initialPreset = null, presets = [], publicC
                 <button
                   type="button"
                   role="tab"
+                  id="file-tab-source"
+                  ref={sourceTabRef}
                   className="editor-tab"
                   aria-selected={activeTab === "source"}
+                  aria-controls="file-panel-source"
+                  tabIndex={activeTab === "source" ? 0 : -1}
                   onClick={() => setActiveTab("source")}
+                  onKeyDown={handleFileTabKeyDown}
                 >
                   source.js{fieldErrors.source ? " !" : ""}
                 </button>
                 <button
                   type="button"
                   role="tab"
+                  id="file-tab-tests"
+                  ref={testsTabRef}
                   className="editor-tab"
                   aria-selected={activeTab === "tests"}
+                  aria-controls="file-panel-tests"
+                  tabIndex={activeTab === "tests" ? 0 : -1}
                   onClick={() => setActiveTab("tests")}
+                  onKeyDown={handleFileTabKeyDown}
                 >
                   source.test.js{fieldErrors.tests ? " !" : ""}
                 </button>
@@ -556,25 +593,32 @@ export default function Playground({ initialPreset = null, presets = [], publicC
                   ? "Named synchronous exports. No imports."
                   : "Import ./source.js. Mocks are rejected."}
               </p>
-              {activeTab === "source" ? (
+              <div
+                role="tabpanel"
+                id="file-panel-source"
+                aria-labelledby="file-tab-source"
+                hidden={activeTab !== "source"}
+              >
                 <CodeEditor
                   value={source}
                   onChange={setSource}
                   ariaLabel="Implementation code, source.js"
                 />
-              ) : (
+                {fieldErrors.source ? <p className="field-error">{fieldErrors.source}</p> : null}
+              </div>
+              <div
+                role="tabpanel"
+                id="file-panel-tests"
+                aria-labelledby="file-tab-tests"
+                hidden={activeTab !== "tests"}
+              >
                 <CodeEditor
                   value={tests}
                   onChange={setTests}
                   ariaLabel="Test code, source.test.js"
                 />
-              )}
-              {activeTab === "source" && fieldErrors.source ? (
-                <p className="field-error">{fieldErrors.source}</p>
-              ) : null}
-              {activeTab === "tests" && fieldErrors.tests ? (
-                <p className="field-error">{fieldErrors.tests}</p>
-              ) : null}
+                {fieldErrors.tests ? <p className="field-error">{fieldErrors.tests}</p> : null}
+              </div>
             </div>
 
             {submitError ? (
@@ -696,6 +740,7 @@ export default function Playground({ initialPreset = null, presets = [], publicC
           </section>
         </div>
 
+        <CliSection version={cliVersion} />
         <HowItWorks />
       </main>
 

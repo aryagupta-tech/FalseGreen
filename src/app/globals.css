@@ -2011,8 +2011,10 @@ textarea {
 
 .editor-tabs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 18px;
+  row-gap: 0;
   border-bottom: 1px solid var(--border);
   margin: 4px 0 12px;
 }
@@ -2216,4 +2218,202 @@ textarea {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 10.5px;
+}
+
+/* Terminal quickstart */
+
+.topnav a {
+  white-space: nowrap;
+}
+
+.hero-cli-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.hero-cli-link:hover,
+.cli-docs-link:hover {
+  color: var(--text-strong);
+}
+
+.cli-section {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 48px;
+  margin-top: 24px;
+  padding: 32px;
+  scroll-margin-top: 24px;
+}
+
+.cli-intro,
+.cli-quickstart {
+  min-width: 0;
+}
+
+.cli-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.cli-label-row .kicker {
+  margin: 0;
+}
+
+.cli-version {
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.cli-section h2 {
+  max-width: 360px;
+  margin: 0;
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1.12;
+}
+
+.cli-lede {
+  max-width: 430px;
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.cli-features {
+  display: grid;
+  gap: 17px;
+  margin: 24px 0;
+}
+
+.cli-features dt {
+  margin-bottom: 3px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cli-features dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.cli-features code,
+.cli-example-note code {
+  color: var(--text);
+  font-size: 0.95em;
+}
+
+.cli-docs-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+  text-underline-offset: 4px;
+}
+
+.cli-requirements {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.cli-command + .cli-command {
+  margin-top: 10px;
+}
+
+.cli-command-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.cli-command-head h3 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cli-command-head .btn {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.cli-command pre {
+  max-width: 100%;
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-inset);
+  color: var(--text-strong);
+  font-size: 11px;
+  line-height: 1.85;
+  tab-size: 2;
+}
+
+.cli-command pre:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.cli-copy-status {
+  min-height: 17px;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.cli-example-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+@media (max-width: 900px) {
+  .cli-section {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 26px;
+  }
+
+  .cli-section h2,
+  .cli-lede {
+    max-width: 560px;
+  }
+}
+
+@media (max-width: 560px) {
+  .cli-section {
+    padding: 22px 18px;
+  }
+
+  .cli-command pre {
+    padding: 12px;
+    font-size: 10px;
+  }
 }

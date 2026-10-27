@@ -1,6 +1,7 @@
 import Playground from "@/components/Playground";
 import { loadConfig } from "@/core/config";
 import { DEFAULT_PRESET_ID, PRESETS, getPreset } from "@/lib/presets";
+import { version } from "../../package.json";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export default function Page() {
       initialPreset={getPreset(DEFAULT_PRESET_ID)}
       presets={PRESETS}
       publicConfig={publicConfig}
+      cliVersion={version}
     />
   );
 }
