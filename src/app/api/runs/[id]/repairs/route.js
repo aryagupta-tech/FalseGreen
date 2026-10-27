@@ -67,6 +67,7 @@ export const POST = handleApi(async (request, { params }) => {
     config,
     runId: id,
     mutationId,
+    schedule: false,
   });
 
   await scheduleRun({ kind: "repair", store, config, runId: id, after });
