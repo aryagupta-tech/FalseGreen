@@ -495,7 +495,7 @@ export default function RunProgress({ run }) {
                   <span className="phase-duration">{formatDuration(phase.durationMs)}</span>
                 ) : null}
               </div>
-              {phase.status !== "pending" && phase.status !== "not_started" && phase.detail ? (
+              {!["pending", "not_started", "idle", "skipped"].includes(phase.status) && phase.detail ? (
                 <p className="phase-detail">{phase.detail}</p>
               ) : null}
             </div>

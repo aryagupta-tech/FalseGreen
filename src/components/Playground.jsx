@@ -645,25 +645,29 @@ export default function Playground({ initialPreset = null, presets = [], publicC
 
             <ScanSummary run={run} />
 
-            <MutationList
-              run={run}
-              selectedMutationId={selectedMutationId}
-              onSelect={handleSelectMutation}
-              onRequestRepair={handleRequestRepair}
-              repairPendingMutationId={repairPendingId}
-              modelConfigured={Boolean(publicConfig?.modelConfigured)}
-            />
+            {run ? (
+              <MutationList
+                run={run}
+                selectedMutationId={selectedMutationId}
+                onSelect={handleSelectMutation}
+                onRequestRepair={handleRequestRepair}
+                repairPendingMutationId={repairPendingId}
+                modelConfigured={Boolean(publicConfig?.modelConfigured)}
+              />
+            ) : null}
 
-            <RepairPanel
-              run={run}
-              mutation={selectedMutation}
-              onRequest={handleRequestRepair}
-              requestPendingId={repairPendingId}
-              error={repairError}
-              model={publicConfig ?? {}}
-            />
+            {run && (selectedMutationId || run.repair) ? (
+              <RepairPanel
+                run={run}
+                mutation={selectedMutation}
+                onRequest={handleRequestRepair}
+                requestPendingId={repairPendingId}
+                error={repairError}
+                model={publicConfig ?? {}}
+              />
+            ) : null}
 
-            <Downloads run={run} />
+            {run?.repair ? <Downloads run={run} /> : null}
           </section>
         </div>
 
