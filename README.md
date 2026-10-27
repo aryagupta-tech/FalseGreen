@@ -5,6 +5,9 @@ Find the mistakes your passing tests would let through.
 > Your AI wrote the code. Your AI wrote the tests. Everything passed. We check
 > what those tests missed.
 
+**Live:** https://falsegreen.vercel.app  
+**Source:** https://github.com/aryagupta-tech/falsegreen
+
 FalseGreen takes one JavaScript module, one Vitest suite, and the requirement
 the module is supposed to satisfy. It mutates comparison and logical operators,
 runs the submitted suite against each mutant, and reports which changes the
@@ -35,7 +38,9 @@ own assertion is offered as a verified repair.
 
 ## The ₹1,000 worked example
 
-The app opens on the `missed-boundary` preset. These are the exact inputs.
+The app opens on the `missed-boundary` preset. These are the exact inputs. The
+hosted demo runs on Vercel with Upstash Redis, Vercel Sandbox execution, and an
+open model through OpenRouter.
 
 **Requirement**
 
