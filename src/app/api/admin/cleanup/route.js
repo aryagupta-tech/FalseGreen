@@ -37,7 +37,7 @@ export async function POST(request) {
       continue;
     }
     try {
-      const handle = await Snapshot.get({ snapshotId: snapshot.id, teamId, token });
+      const handle = await Snapshot.get({ snapshotId: snapshot.id, teamId, token, projectId });
       await handle.delete();
       deleted.push(snapshot.id);
     } catch (error) {
