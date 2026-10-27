@@ -123,6 +123,7 @@ export default function Playground({ initialPreset = null, presets = [], publicC
   const [requirement, setRequirement] = useState(basePreset?.requirement ?? "");
   const [source, setSource] = useState(basePreset?.source ?? "");
   const [tests, setTests] = useState(basePreset?.tests ?? "");
+  const [activeTab, setActiveTab] = useState("source");
 
   const [run, setRun] = useState(null);
   const [runId, setRunId] = useState(null);
@@ -434,39 +435,62 @@ export default function Playground({ initialPreset = null, presets = [], publicC
           <span className="brand-mark" aria-hidden="true">
             FG
           </span>
-          <h1>FalseGreen</h1>
+          <span className="brand-name">FalseGreen</span>
         </div>
-        <p className="promise">Find the mistakes your passing tests would let through.</p>
+        <nav className="topnav" aria-label="Links">
+          <a href="#how">How it works</a>
+          <a
+            href="https://github.com/aryagupta-tech/falsegreen"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>
+        </nav>
       </header>
+
+      <section className="hero">
+        <div className="hero-copy">
+          <p className="kicker">Mutation testing for AI-written code</p>
+          <h1>
+            Your tests pass.
+            <br />
+            <em>Do they catch anything?</em>
+          </h1>
+          <p className="hero-lede">
+            FalseGreen changes your code on purpose, runs your suite, and shows the changes it
+            misses. A repair is offered only after it passes execution.
+          </p>
+          {presetList.length > 0 ? (
+            <div className="hero-presets" role="group" aria-label="Examples">
+              <span>Try a case</span>
+              {presetList.map((preset) => (
+                <button
+                  type="button"
+                  key={preset.id}
+                  className="preset-button"
+                  aria-pressed={preset.id === presetId}
+                  onClick={() => selectPreset(preset)}
+                >
+                  {preset.shortLabel ?? preset.label ?? preset.id}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <aside className="hero-scope">
+          <span className="scope-label">What it takes</span>
+          <p>One ES module. One Vitest file. Named synchronous exports.</p>
+          <p className="scope-note">Paste your original prompt as the requirement.</p>
+        </aside>
+      </section>
 
       <main>
         <div className="workspace">
           <form className="panel input-panel" onSubmit={handleSubmit} noValidate aria-labelledby="inputs-heading">
             <div className="panel-head">
-              <h2 id="inputs-heading">Playground</h2>
+              <h2 id="inputs-heading">Check a module</h2>
             </div>
-
-            {presetList.length > 0 ? (
-              <div className="preset-block">
-                <div className="field-head">
-                  <span className="field-label">Preset</span>
-                </div>
-                <div className="preset-bar" role="group" aria-label="Preset">
-                  {presetList.map((preset) => (
-                    <button
-                      type="button"
-                      key={preset.id}
-                      className="preset-button"
-                      aria-pressed={preset.id === presetId}
-                      onClick={() => selectPreset(preset)}
-                    >
-                      {preset.shortLabel ?? preset.label ?? preset.id}
-                    </button>
-                  ))}
-                </div>
-                <p className="preset-note">Loading a preset replaces all inputs.</p>
-              </div>
-            ) : null}
 
             <div className="field">
               <div className="field-head">
@@ -498,57 +522,58 @@ export default function Playground({ initialPreset = null, presets = [], publicC
               ) : null}
             </div>
 
-            <div
-              className="field"
-              role="group"
-              aria-labelledby="source-label"
-              aria-describedby={
-                fieldErrors.source ? "source-helper source-error" : "source-helper"
-              }
-            >
-              <div className="field-head">
-                <span className="field-label" id="source-label">
-                  Implementation
+            <div className="field">
+              <div className="editor-tabs" role="tablist" aria-label="Files">
+                <button
+                  type="button"
+                  role="tab"
+                  className="editor-tab"
+                  aria-selected={activeTab === "source"}
+                  onClick={() => setActiveTab("source")}
+                >
+                  source.js{fieldErrors.source ? " !" : ""}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  className="editor-tab"
+                  aria-selected={activeTab === "tests"}
+                  onClick={() => setActiveTab("tests")}
+                >
+                  source.test.js{fieldErrors.tests ? " !" : ""}
+                </button>
+                <span className="editor-tab-meta">
+                  <ByteCounter
+                    value={activeTab === "source" ? source : tests}
+                    max={
+                      activeTab === "source" ? limits.maxSourceBytes : limits.maxTestsBytes
+                    }
+                  />
                 </span>
-                <span className="field-file">source.js</span>
-                <ByteCounter value={source} max={limits.maxSourceBytes} />
               </div>
-              <p className="field-helper" id="source-helper">
-                One ES module. Named synchronous exports. No imports.
+              <p className="field-helper">
+                {activeTab === "source"
+                  ? "Named synchronous exports. No imports."
+                  : "Import ./source.js. Mocks are rejected."}
               </p>
-              <CodeEditor
-                value={source}
-                onChange={setSource}
-                ariaLabel="Implementation code, source.js"
-              />
-              {fieldErrors.source ? (
-                <p className="field-error" id="source-error">
-                  {fieldErrors.source}
-                </p>
+              {activeTab === "source" ? (
+                <CodeEditor
+                  value={source}
+                  onChange={setSource}
+                  ariaLabel="Implementation code, source.js"
+                />
+              ) : (
+                <CodeEditor
+                  value={tests}
+                  onChange={setTests}
+                  ariaLabel="Test code, source.test.js"
+                />
+              )}
+              {activeTab === "source" && fieldErrors.source ? (
+                <p className="field-error">{fieldErrors.source}</p>
               ) : null}
-            </div>
-
-            <div
-              className="field"
-              role="group"
-              aria-labelledby="tests-label"
-              aria-describedby={fieldErrors.tests ? "tests-helper tests-error" : "tests-helper"}
-            >
-              <div className="field-head">
-                <span className="field-label" id="tests-label">
-                  Tests
-                </span>
-                <span className="field-file">source.test.js</span>
-                <ByteCounter value={tests} max={limits.maxTestsBytes} />
-              </div>
-              <p className="field-helper" id="tests-helper">
-                Vitest. Import <code>./source.js</code>. Mocks are rejected.
-              </p>
-              <CodeEditor value={tests} onChange={setTests} ariaLabel="Test code, source.test.js" />
-              {fieldErrors.tests ? (
-                <p className="field-error" id="tests-error">
-                  {fieldErrors.tests}
-                </p>
+              {activeTab === "tests" && fieldErrors.tests ? (
+                <p className="field-error">{fieldErrors.tests}</p>
               ) : null}
             </div>
 

@@ -52,6 +52,7 @@ export default function Downloads({ run }) {
               href={`/api/runs/${encodeURIComponent(runId)}/artifacts/${file.href}`}
               download={file.name}
               aria-describedby="download-reason"
+              title={file.name}
               key={file.href}
             >
               <Glyph name="download" />
@@ -62,6 +63,7 @@ export default function Downloads({ run }) {
               type="button"
               className="download download--disabled"
               aria-describedby="download-reason"
+              title={file.name}
               disabled
               key={file.href}
             >

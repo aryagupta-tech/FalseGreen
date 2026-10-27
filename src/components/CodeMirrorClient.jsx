@@ -2,7 +2,6 @@
 
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { javascript } from "@codemirror/lang-javascript";
-import { oneDark } from "@codemirror/theme-one-dark";
 
 const extensions = [javascript(), EditorView.lineWrapping];
 
@@ -16,7 +15,6 @@ export default function CodeMirrorClient({ value, onChange, ariaLabel, readOnly 
       <CodeMirror
         value={value ?? ""}
         height="220px"
-        theme={oneDark}
         extensions={extensions}
         onChange={onChange}
         readOnly={readOnly}
