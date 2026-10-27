@@ -20,6 +20,7 @@ export async function POST(request) {
   const projectId = process.env.VERCEL_PROJECT_ID;
   if (!projectId) return Response.json({ error: "no_project_id" }, { status: 500 });
 
+  try {
   const list = await Snapshot.list({ projectId, limit: 100 });
   const deleted = [];
   const failed = [];
@@ -42,4 +43,10 @@ export async function POST(request) {
   }
 
   return Response.json({ inspected, kept, deleted: deleted.length, failed: failed.length, failures: failed.slice(0, 5) });
+  } catch (error) {
+    return Response.json(
+      { error: "cleanup_failed", message: error instanceof Error ? error.message : String(error) },
+      { status: 500 },
+    );
+  }
 }
