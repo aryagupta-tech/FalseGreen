@@ -24,7 +24,7 @@ export async function POST(request) {
   try {
   const token = await getVercelOidcToken();
   const teamId = process.env.VERCEL_TEAM_ID || "arya-guptas-projects-a145dbd9";
-  const list = await Snapshot.list({ projectId, teamId, token, limit: 100 });
+  const list = await Snapshot.list({ projectId, teamId, token, limit: 50 });
   const deleted = [];
   const failed = [];
   let kept = 0;
