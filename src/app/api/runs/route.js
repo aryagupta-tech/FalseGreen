@@ -34,7 +34,7 @@ export const POST = handleApi(async (request) => {
   });
 
   try {
-    await enqueueScan({ store, config, run });
+    await enqueueScan({ store, config, run, schedule: false });
   } catch (error) {
     if (error instanceof ConflictError) {
       throw new ConflictError("Both scan slots are busy. Try again in a moment.");
