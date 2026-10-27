@@ -4,6 +4,7 @@ import { buildPrompt, extractJson, extractMessageContent, text, truncate } from 
 import { ModelError, ProposalError, validateProposal } from "./proposal.js";
 import { renderProposal } from "./render.js";
 
+import { getVercelOidcToken } from "@vercel/oidc";
 const DEFAULT_BASE_URL = "http://127.0.0.1:11434/v1";
 const DEFAULT_TIMEOUT_MS = 45000;
 const DEFAULT_MAX_ARGS_BYTES = 4096;
@@ -160,8 +161,7 @@ export function createModel(config = {}) {
   const endpoint = `${baseUrl}/chat/completions`;
   // Vercel AI Gateway accepts the deployment's OIDC token, so a separate
   // provider key is optional on Vercel.
-  const apiKey =
-    text(model.apiKey).trim() || text(process.env.VERCEL_OIDC_TOKEN).trim();
+  const configuredKey = text(model.apiKey).trim() || text(process.env.VERCEL_OIDC_TOKEN).trim();
   const timeoutMs = positiveNumber(model.timeoutMs, DEFAULT_TIMEOUT_MS);
   const maxArgsBytes = positiveNumber(config.limits?.maxArgsBytes, DEFAULT_MAX_ARGS_BYTES);
   const includeResponseFormat = model.responseFormat !== false;
@@ -181,6 +181,15 @@ export function createModel(config = {}) {
       "Content-Type": "application/json",
       Accept: "application/json",
     };
+    let apiKey = configuredKey;
+    if (!apiKey) {
+      // Vercel AI Gateway accepts the project's short-lived OIDC token.
+      try {
+        apiKey = text(await getVercelOidcToken()).trim();
+      } catch {
+        apiKey = "";
+      }
+    }
     if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
     const signal =

@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { getVercelOidcToken } from "@vercel/oidc";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,9 +13,15 @@ function authorized(request) {
 
 export async function GET(request) {
   if (!authorized(request)) return new Response("Not found", { status: 404 });
+  let oidc = "";
+  try {
+    oidc = await getVercelOidcToken();
+  } catch {
+    oidc = "";
+  }
   return Response.json({
-    hasOidc: Boolean(process.env.VERCEL_OIDC_TOKEN),
-    oidcLength: (process.env.VERCEL_OIDC_TOKEN || "").length,
+    hasOidc: Boolean(oidc),
+    oidcLength: oidc.length,
     vercelKeys: Object.keys(process.env).filter((key) => key.startsWith("VERCEL_")).sort(),
     modelConfigured: Boolean(process.env.MODEL_API_BASE_URL && process.env.MODEL_ID),
   });
