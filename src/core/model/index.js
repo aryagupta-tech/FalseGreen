@@ -158,7 +158,10 @@ export function createModel(config = {}) {
   if (!baseUrl) throw new ConfigError("Set MODEL_API_BASE_URL.");
 
   const endpoint = `${baseUrl}/chat/completions`;
-  const apiKey = text(model.apiKey).trim();
+  // Vercel AI Gateway accepts the deployment's OIDC token, so a separate
+  // provider key is optional on Vercel.
+  const apiKey =
+    text(model.apiKey).trim() || text(process.env.VERCEL_OIDC_TOKEN).trim();
   const timeoutMs = positiveNumber(model.timeoutMs, DEFAULT_TIMEOUT_MS);
   const maxArgsBytes = positiveNumber(config.limits?.maxArgsBytes, DEFAULT_MAX_ARGS_BYTES);
   const includeResponseFormat = model.responseFormat !== false;
