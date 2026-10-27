@@ -136,6 +136,7 @@ async function readResponseJson(response) {
  *     temperature?: number,
  *     maxTokens?: number,
  *     responseFormat?: boolean,
+ *     signal?: AbortSignal,
  *     fetch?: typeof fetch
  *   },
  *   fetch?: typeof fetch
@@ -192,10 +193,13 @@ export function createModel(config = {}) {
     }
     if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-    const signal =
+    const timeoutSignal =
       typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
         ? AbortSignal.timeout(timeoutMs)
         : undefined;
+    const signal = model.signal && timeoutSignal
+      ? AbortSignal.any([model.signal, timeoutSignal])
+      : model.signal || timeoutSignal;
 
     try {
       return await fetchImpl(endpoint, {

@@ -24,7 +24,7 @@ const VALUE_FLAGS = new Set([
   "out",
   "mutation",
 ]);
-const BOOLEAN_FLAGS = new Set(["apply", "yes", "json", "help"]);
+const BOOLEAN_FLAGS = new Set(["apply", "yes", "json", "help", "local"]);
 
 class CliError extends Error {
   constructor(message, exitCode = 1) {
@@ -34,6 +34,8 @@ class CliError extends Error {
   }
 }
 
+let localController = null;
+let interruptedCode = null;
 let progressVisible = false;
 let progressWidth = 0;
 let lastPlainProgress = "";
@@ -48,8 +50,9 @@ function helpText() {
 Find the mistakes passing tests let through.
 
 Usage:
-  falsegreen check --source <path> --tests <path> --requirement <text|@file> [options]
-  falsegreen scan  --source <path> --tests <path> --requirement <text|@file> [options]
+  falsegreen check --local --source <path> --tests <path> --requirement <text|@file>
+  falsegreen scan  --local --source <path> --tests <path> --requirement <text|@file>
+  falsegreen check --source <path> --tests <path> --requirement <text|@file> [--url <base>]
   falsegreen check --help
   falsegreen scan --help
 
@@ -61,7 +64,8 @@ Options:
   --source <path>        ES module to mutate. Required.
   --tests <path>         Vitest test file for the module. Required.
   --requirement <value>  Stated behaviour. Use @file to read it from a file. Required.
-  --url <base>           Server base URL. Default http://localhost:3000.
+  --local                Run everything on this machine. No server or deployment.
+  --url <base>           Server base URL when --local is not used.
   --out <dir>            Artifact directory. Default ./falsegreen-artifacts.
   --apply                Apply the verified patch with git apply.
   --yes                  Skip the git apply confirmation prompt.
@@ -71,16 +75,25 @@ Options:
 
 Environment:
   FALSEGREEN_URL         Default server base URL when --url is omitted.
+  MODEL_API_BASE_URL     OpenAI-compatible model endpoint for --local repairs.
+  MODEL_API_KEY          Bearer token for that endpoint.
+  MODEL_ID               Model name.
   Session file           Cookie stored in ~/.falsegreen/session with mode 0600.
+
+Local mode runs the submitted suite in a temporary directory with the local
+Vitest install. Scans work without a model; repairs need MODEL_API_* or a local
+Ollama endpoint. Supports one self-contained module with named synchronous
+exports and one Vitest file. Local tests can import the selected module by its
+relative path. A missed mutation identifies a test gap, not proof of a bug.
 
 Limits:
   source and tests       65536 bytes each.
   requirement            4096 bytes.
 
 Exit codes:
-  0  Verified repair, or scan completed without missed mutations.
-  1  Usage, transport, or HTTP error.
-  2  No verified repair, or scan found missed mutations.
+  0  Verified repair, or a complete scan with no missed/inconclusive mutations.
+  1  Usage, configuration, artifact, patch application, transport or HTTP error.
+  2  No verified repair, a missed mutation, or an incomplete/inconclusive scan.
 `;
 }
 
@@ -96,7 +109,7 @@ function parseArgs(argv) {
       return { value: inlineValue, nextIndex: index };
     }
     const next = argv[index + 1];
-    if (next === undefined || next.startsWith("--")) {
+    if (next === undefined || next.startsWith("--") || next === "-h") {
       throw new CliError(`Missing value for --${name}. Run falsegreen --help for usage.`);
     }
     return { value: next, nextIndex: index + 1 };
@@ -128,6 +141,9 @@ function parseArgs(argv) {
       if (BOOLEAN_FLAGS.has(name)) {
         if (inlineValue !== undefined) {
           throw new CliError(`--${name} does not take a value. Run falsegreen --help for usage.`);
+        }
+        if (flags[name]) {
+          throw new CliError(`--${name} was given more than once. Run falsegreen --help for usage.`);
         }
         flags[name] = true;
         continue;
@@ -359,15 +375,7 @@ function readRequirement(value) {
     if (!filePath) {
       throw new CliError("Missing requirement file after @. Use --requirement @path/to/requirement.txt.");
     }
-    let buffer;
-    try {
-      buffer = fs.readFileSync(filePath);
-    } catch {
-      throw new CliError(
-        `Requirement file not found: ${filePath}. Pass --requirement @<path> with an existing file.`,
-      );
-    }
-    requirement = buffer.toString("utf8");
+    requirement = readModule("requirement", filePath, MAX_REQUIREMENT_BYTES, "Requirement");
   }
 
   if (requirement.trim() === "") {
@@ -635,19 +643,78 @@ async function saveArtifacts({ runId, baseUrl, outDir }) {
   return paths;
 }
 
-async function applyPatch({ patchPath, patchContent, assumeYes, say }) {
+async function saveLocalArtifacts({ run, flags, originalTests }) {
+  const { localRepairArtifacts } = await import("../src/core/cli-files.js");
+  const outDir = flags.out;
+  let directory = path.resolve(outDir || "./falsegreen-artifacts");
+  const sourceDir = path.dirname(fs.realpathSync(flags.source));
+  const gitRoot = spawnSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8", cwd: sourceDir });
+  const patchRoot = gitRoot.status === 0 ? gitRoot.stdout.trim() : sourceDir;
+  try {
+    fs.mkdirSync(directory, { recursive: true });
+    directory = fs.realpathSync(directory);
+  } catch (error) {
+    throw new CliError(`Could not create the artifact directory ${directory}: ${error.message}.`);
+  }
+  const artifacts = localRepairArtifacts({
+    run, sourcePath: flags.source, testsPath: flags.tests, originalTests,
+    outDir: directory, patchRoot,
+  });
+
+  const inputPaths = [flags.source, flags.tests];
+  if (flags.requirement.startsWith("@")) inputPaths.push(flags.requirement.slice(1));
+  const inputFiles = inputPaths.map((filePath) => fs.statSync(filePath));
+  for (const fileName of Object.keys(artifacts)) {
+    const target = path.join(directory, fileName);
+    let stats;
+    try {
+      stats = fs.lstatSync(target);
+    } catch (error) {
+      if (error.code === "ENOENT") continue;
+      throw new CliError(`Could not inspect artifact path ${target}: ${error.message}.`);
+    }
+    if (stats.isSymbolicLink() || inputFiles.some((input) => input.dev === stats.dev && input.ino === stats.ino)) {
+      throw new CliError(`Refusing to overwrite an input file or symlink at ${target}. Choose another --out directory.`);
+    }
+  }
+
+  const paths = {};
+  for (const fileName of [
+    "falsegreen.generated.test.js",
+    "falsegreen.patch",
+    "falsegreen.evidence.json",
+  ]) {
+    const content = artifacts[fileName];
+    if (typeof content !== "string") {
+      throw new CliError(`Missing artifact ${fileName}; the repair is incomplete.`);
+    }
+    const target = path.join(directory, fileName);
+    try {
+      fs.writeFileSync(target, content, "utf8");
+    } catch (error) {
+      throw new CliError(`Could not write ${target}: ${error.message}. Check the --out directory.`);
+    }
+    paths[fileName] = target;
+  }
+  return { paths, patchRoot };
+}
+
+async function applyPatch({ patchPath, patchContent, assumeYes, say, cwd = process.cwd() }) {
   say("");
   say("Patch");
   say(patchContent.trimEnd());
 
   if (!assumeYes) {
+    if (!process.stdin.isTTY) {
+      throw new CliError("--apply needs an interactive terminal or --yes. The verified patch was saved.");
+    }
     const prompt = readline.createInterface({
       input: process.stdin,
       output: process.stderr,
     });
     let answer = "";
     try {
-      answer = await prompt.question("Apply this patch with git apply? [y/N] ");
+      answer = await prompt.question("Apply this patch with git apply? [y/N] ", { signal: localController?.signal });
     } finally {
       prompt.close();
     }
@@ -657,16 +724,13 @@ async function applyPatch({ patchPath, patchContent, assumeYes, say }) {
     }
   }
 
-  const result = spawnSync("git", ["apply", patchPath], { encoding: "utf8" });
+  const result = spawnSync("git", ["apply", patchPath], { encoding: "utf8", cwd });
   if (result.error) {
-    say(`git apply could not run: ${result.error.message}`);
-    return;
+    throw new CliError(`git apply could not run: ${result.error.message}`);
   }
   if (result.status !== 0) {
-    say(`git apply failed with exit code ${result.status}.`);
     const detail = String(result.stderr || result.stdout || "").trim();
-    if (detail) say(detail);
-    return;
+    throw new CliError(`git apply failed with exit code ${result.status}.${detail ? ` ${detail}` : ""}`);
   }
 
   say("Applied patch with git apply.");
@@ -695,6 +759,23 @@ function chooseMutation(run, requestedId, say) {
   return mutations.find((mutation) => mutation.status === "missed") || null;
 }
 
+function inconclusiveCount(run) {
+  const scan = run.scan || {};
+  return (
+    (Number(scan.errors) || 0) +
+    (Number(scan.timeouts) || 0) +
+    (Number(scan.untested) || 0)
+  );
+}
+
+function scanIsComplete(run) {
+  return run.status === "completed" &&
+    ["complete", "no_mutations"].includes(run.scan?.stopReason) &&
+    run.baseline?.outcome === "completed" &&
+    Number(run.baseline.counts?.passed) > 0 &&
+    !Number(run.baseline.counts?.failed);
+}
+
 function printNoMissedMessage(run, say) {
   const stopReason = run.scan?.stopReason;
   if (stopReason === "baseline_failed") {
@@ -713,10 +794,223 @@ function printNoMissedMessage(run, say) {
     say("The scan deadline passed before any missed mutation was found. Retry with a smaller module.");
     return;
   }
+  const inconclusive = inconclusiveCount(run);
+  if (inconclusive > 0) {
+    say(
+      `No missed mutations, but ${inconclusive} mutation${inconclusive === 1 ? " was" : "s were"} inconclusive. Timed out, execution error and untested are not evidence either way.`,
+    );
+    return;
+  }
   say("No missed mutations. The existing tests caught every mutant in this run.");
 }
 
+async function runLocal(command, flags) {
+  const jsonMode = Boolean(flags.json);
+  const say = (text = "") => {
+    if (jsonMode) process.stderr.write(`${text}\n`);
+    else process.stdout.write(`${text}\n`);
+  };
+  const emitJson = (run) => {
+    if (jsonMode) process.stdout.write(`${JSON.stringify(run, null, 2)}\n`);
+  };
+
+  const source = readModule("source", flags.source, MAX_SOURCE_BYTES, "Source");
+  const originalTests = readModule("tests", flags.tests, MAX_TESTS_BYTES, "Tests");
+  const requirement = readRequirement(flags.requirement);
+
+  const [{ loadConfig }, { createStore }, engine, { createLocalRunner }, { normalizeLocalTests }] = await Promise.all([
+    import("../src/core/config.js"),
+    import("../src/core/store/index.js"),
+    import("../src/core/jobs/engine.js"),
+    import("../src/core/execution/local-runner.js"),
+    import("../src/core/cli-files.js"),
+  ]);
+  const tests = normalizeLocalTests({ tests: originalTests, sourcePath: flags.source, testsPath: flags.tests });
+
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "falsegreen-cli-"));
+  const controller = new AbortController();
+  localController = controller;
+
+  const config = loadConfig({
+    ...process.env,
+    EXECUTION_DRIVER: "local",
+    STORE_DRIVER: "file",
+    FG_DATA_DIR: workDir,
+    JOB_DRIVER: "inline",
+  });
+  config.model.signal = controller.signal;
+  config.deps = {
+    createRunner: () => {
+      const runner = createLocalRunner(config);
+      return {
+        runTests: (input) => runner.runTests({ ...input, signal: controller.signal }),
+      };
+    },
+  };
+  const store = createStore(config);
+
+  try {
+    const created = await engine.createRun({
+      store,
+      limits: config.limits,
+      sessionId: "cli-local",
+      input: { requirement, source, tests },
+    });
+
+    await engine.enqueueScan({ store, config, run: created, schedule: false });
+
+    let run = created;
+    while (!["completed", "failed", "cancelled"].includes(run.status)) {
+      run = await engine.tickScan({ store, config, runId: created.id });
+      controller.signal.throwIfAborted();
+      writeProgress(progressText(run));
+    }
+    clearProgress();
+
+    printBaseline(say, run);
+    printMutations(say, run);
+    printScan(say, run);
+
+    if (command === "scan") {
+      if (run.status === "failed") {
+        emitJson(run);
+        return 2;
+      }
+      const missed = Number(run.scan?.missed) || 0;
+      if (missed > 0) {
+        say("");
+        say(`${missed} missed mutation${missed === 1 ? "" : "s"} found. Run check to propose a repair.`);
+        emitJson(run);
+        return 2;
+      }
+      if (!scanIsComplete(run)) {
+        emitJson(run);
+        return 2;
+      }
+      const inconclusive = inconclusiveCount(run);
+      if (inconclusive > 0) {
+        say("");
+        say(
+          `${inconclusive} mutation${inconclusive === 1 ? " was" : "s were"} inconclusive. This is not a clean scan.`,
+        );
+        emitJson(run);
+        return 2;
+      }
+      emitJson(run);
+      return 0;
+    }
+
+    if (run.status === "failed") {
+      say(`Run failed: ${run.failure?.message || "The local scan stopped."}`);
+      emitJson(run);
+      return 2;
+    }
+
+    const mutation = chooseMutation(run, flags.mutation, say);
+    if (!mutation) {
+      printNoMissedMessage(run, say);
+      emitJson(run);
+      return 2;
+    }
+
+    if (config.model.driver === "unconfigured") {
+      emitJson(run);
+      throw new CliError(
+        "A repair needs a model. Set MODEL_API_BASE_URL, MODEL_API_KEY and MODEL_ID, or use MODEL_DRIVER=ollama with a local model.",
+      );
+    }
+
+    say("");
+    say(`Repairing ${mutation.id}: ${mutation.change}`);
+
+    await engine.requestRepair({
+      store,
+      limits: config.limits,
+      config,
+      runId: run.id,
+      mutationId: mutation.id,
+      schedule: false,
+    });
+
+    run = await store.get(engine.runKey(run.id));
+    while (
+      run.repair &&
+      ["queued", "running"].includes(run.repair.status)
+    ) {
+      run = await engine.tickRepair({ store, config, runId: run.id });
+      controller.signal.throwIfAborted();
+      writeProgress(progressText(run));
+    }
+    clearProgress();
+
+    const repair = run.repair;
+    if (!repair) {
+      say("No verified repair: the local engine did not return a repair record.");
+      emitJson(run);
+      return 2;
+    }
+
+    printProposal(say, repair);
+    printMatrix(say, repair);
+    say("");
+
+    const status = repair.status || repair.verification?.status;
+    if (status === "verified") {
+      say("Verified repair.");
+      const { paths, patchRoot } = await saveLocalArtifacts({ run, flags, originalTests });
+      say("");
+      say("Artifacts");
+      for (const fileName of Object.keys(paths)) {
+        say(`  ${paths[fileName]}`);
+      }
+
+      if (flags.apply && paths["falsegreen.patch"]) {
+        const patchContent = fs.readFileSync(paths["falsegreen.patch"], "utf8");
+        await applyPatch({
+          patchPath: paths["falsegreen.patch"],
+          patchContent,
+          assumeYes: Boolean(flags.yes),
+          say,
+          cwd: patchRoot,
+        });
+      }
+
+      emitJson(run);
+      return 0;
+    }
+
+    if (status === "mismatch") {
+      say("Requirement mismatch.");
+      const mismatch = repair.verification?.mismatch;
+      say(`  requirement: ${mismatch?.requirement ?? run.input?.requirement ?? ""}`);
+      say(`  input: ${formatValue(mismatch?.args ?? [])}`);
+      say(`  expected: ${formatValue(mismatch?.expected)}`);
+      say(`  observed: ${formatValue(mismatch?.observed)}`);
+      const reason = repair.failure || repair.verification?.detail;
+      if (reason) say(`  reason: ${reason}`);
+      emitJson(run);
+      return 2;
+    }
+
+    say(`No verified repair (${status || "error"}).`);
+    const reason = repair.failure || repair.verification?.detail;
+    if (reason) say(`Reason: ${reason}`);
+    emitJson(run);
+    return 2;
+  } finally {
+    clearProgress();
+    try {
+      fs.rmSync(workDir, { recursive: true, force: true });
+    } catch {
+      // Best effort.
+    }
+    if (localController === controller) localController = null;
+  }
+}
+
 async function runCommand(command, flags) {
+  if (flags.local) return runLocal(command, flags);
+
   const jsonMode = Boolean(flags.json);
   const say = (text = "") => {
     if (jsonMode) process.stderr.write(`${text}\n`);
@@ -747,7 +1041,7 @@ async function runCommand(command, flags) {
   let run = await pollRun({
     runId,
     baseUrl,
-    done: (current) => current.status === "completed" || current.status === "failed",
+    done: (current) => ["completed", "failed", "cancelled"].includes(current.status),
   });
 
   printBaseline(say, run);
@@ -766,7 +1060,16 @@ async function runCommand(command, flags) {
       emitJson(run);
       return 2;
     }
-    if (run.scan?.stopReason === "baseline_failed" || run.scan?.stopReason === "no_tests") {
+    if (!scanIsComplete(run)) {
+      emitJson(run);
+      return 2;
+    }
+    const inconclusive = inconclusiveCount(run);
+    if (inconclusive > 0) {
+      say("");
+      say(
+        `${inconclusive} mutation${inconclusive === 1 ? " was" : "s were"} inconclusive. This is not a clean scan.`,
+      );
       emitJson(run);
       return 2;
     }
@@ -899,21 +1202,40 @@ async function main() {
     throw new CliError(`Unknown command ${JSON.stringify(command)}. Use check or scan.`);
   }
 
+  if (flags.local && flags.url !== undefined) {
+    throw new CliError("--local and --url cannot be used together.");
+  }
+  if (command === "scan") {
+    for (const name of ["apply", "mutation", "out"]) {
+      if (flags[name] !== undefined) throw new CliError(`--${name} requires the check command.`);
+    }
+  }
+  if (flags.yes && !flags.apply) throw new CliError("--yes requires --apply.");
+
   return runCommand(command, flags);
 }
 
-process.on("SIGINT", () => {
+function interrupt(signal) {
+  if (interruptedCode) return;
+  interruptedCode = signal === "SIGINT" ? 130 : 143;
   clearProgress();
-  process.stderr.write("Interrupted.\n");
-  process.exit(130);
-});
+  process.stderr.write(signal === "SIGINT" ? "Interrupted.\n" : "Terminated.\n");
+  if (localController) localController.abort();
+  else process.exit(interruptedCode);
+}
+process.on("SIGINT", () => interrupt("SIGINT"));
+process.on("SIGTERM", () => interrupt("SIGTERM"));
 
 main()
   .then((code) => {
-    process.exitCode = code;
+    process.exitCode = interruptedCode || code;
   })
   .catch((error) => {
     clearProgress();
+    if (interruptedCode) {
+      process.exitCode = interruptedCode;
+      return;
+    }
     if (error instanceof CliError) {
       process.stderr.write(`falsegreen: ${error.message}\n`);
       process.exitCode = error.exitCode;

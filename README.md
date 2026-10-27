@@ -306,27 +306,91 @@ modify `source.js`.
 ## CLI
 
 The CLI entrypoint is `bin/falsegreen.js`. Install the command with `npm link`,
-or call `node bin/falsegreen.js` directly.
+or call `node bin/falsegreen.js` directly. From this checkout, try the included
+example without starting the website:
 
 ```bash
-falsegreen check --source <path> --tests <path> --requirement <text|@file> [options]
-falsegreen scan  --source <path> --tests <path> --requirement <text|@file> [options]
+npm run cli -- scan --local \
+  --source examples/terminal/source.js \
+  --tests examples/terminal/source.test.js \
+  --requirement @examples/terminal/requirement.txt
+```
+
+This example exits `2`: its tests miss the exact shipping threshold. The output
+shows the baseline, each mutation and its result, and the scan totals. A missed
+mutation means the tests cannot distinguish two implementations; it does not
+establish that the original is wrong.
+
+```bash
+# Everything on this machine. No server, no deployment.
+falsegreen scan  --local --source <path> --tests <path> --requirement <text|@file>
+falsegreen check --local --source <path> --tests <path> --requirement <text|@file>
+
+# Or call a FalseGreen server.
+falsegreen check --source <path> --tests <path> --requirement <text|@file> [--url <base>]
 ```
 
 `check` scans, then proposes and verifies one repair. `scan` stops after the
 scan, does not request a repair, and does not save artifacts.
+
+Local mode runs the module in a temporary directory with the local Vitest
+install. It accepts one self-contained JavaScript ES module with named synchronous
+function exports and one Vitest test file. Tests may import `vitest` and the
+selected module using its relative path, including across directories. Imported
+source dependencies, default or async exports, and mocks are rejected before
+execution. This has the same scope as the playground, rather than scanning an
+entire application.
+
+Module and artifact paths may contain spaces and Unicode. URL-special characters
+(`#`, `?`, `%`) and control characters are rejected because they do not reliably
+resolve as local modules in Vitest.
+
+Scans need no service or model. Repairs need an OpenAI-compatible endpoint in
+`MODEL_API_BASE_URL`, `MODEL_API_KEY`, and `MODEL_ID`, or `MODEL_DRIVER=ollama`
+with a local model. Without a model, `check --local` stops with exit code `1`
+and an actionable message.
+
+For local Ollama repairs, export `MODEL_DRIVER=ollama` and `MODEL_ID` as an
+already installed model name. Its default endpoint is `http://127.0.0.1:11434/v1`.
+Model requests include the submitted source, tests and requirement; use a local
+endpoint when these must stay on your machine. Only run code you trust locally:
+temporary directories do not prevent access to your account's files or network.
+
+Ctrl+C and SIGTERM abort active test or model requests and remove temporary
+execution and store directories. `FG_KEEP_LOCAL_ARTIFACTS=1` keeps execution
+directories for debugging.
 
 | Option | Meaning |
 | --- | --- |
 | `--source <path>` | ES module to mutate. Required. |
 | `--tests <path>` | Vitest file for the module. Required. |
 | `--requirement <value>` | Stated behaviour. Use `@file` to read it from a file. Required. |
-| `--url <base>` | Server base URL. Defaults to `FALSEGREEN_URL` or `http://localhost:3000`. |
+| `--local` | Run the engine, Vitest and artifacts on this machine. |
+| `--url <base>` | Server base URL when `--local` is not used. Defaults to `FALSEGREEN_URL` or `http://localhost:3000`. |
 | `--out <dir>` | Artifact directory. Defaults to `./falsegreen-artifacts`. |
 | `--mutation <id>` | Repair this missed mutation instead of the first one. |
 | `--apply` | Run `git apply` on the verified patch. |
 | `--yes` | Skip the apply confirmation prompt. |
 | `--json` | Print the final run record to stdout. Human progress goes to stderr. |
+
+Local examples:
+
+```bash
+falsegreen scan --local \
+  --source source.js \
+  --tests source.test.js \
+  --requirement @requirement.txt
+```
+
+```bash
+MODEL_API_BASE_URL=https://openrouter.ai/api/v1 \
+MODEL_API_KEY=... MODEL_ID=... \
+falsegreen check --local \
+  --source source.js \
+  --tests source.test.js \
+  --requirement @requirement.txt \
+  --out artifacts --apply --yes
+```
 
 Examples:
 
@@ -350,17 +414,26 @@ falsegreen check \
 
 `check` saves `falsegreen.generated.test.js`, `falsegreen.patch`, and
 `falsegreen.evidence.json` only when the repair is verified. `--apply` needs a
-git work tree. The session cookie is stored at `~/.falsegreen/session` with mode
-`0600`.
+git work tree and prompts first; use `--yes` in scripts. Apply failures exit `1`
+and preserve the saved patch. Local patches add a regression test beside the
+selected module with paths relative to its Git root (or module directory outside
+Git), so they also apply correctly from a subdirectory. The saved generated test
+imports the original module relative to the artifact directory. Evidence retains
+the canonical inputs used for verification and records the local path mapping.
+Local runs do not create a session cookie. Server mode stores its cookie at
+`~/.falsegreen/session` with mode `0600`.
+
+`--local` cannot be combined with `--url`. `--apply`, `--out` and `--mutation`
+require `check`; `--yes` requires `--apply`.
 
 Exit codes:
 
-- `0`: a verified repair, or a scan completed cleanly with no missed mutations.
+- `0`: a verified repair, or a scan completed cleanly with no missed and no inconclusive mutations.
 - `1`: usage, transport, or HTTP error, including a missing model when a repair
   is requested.
-- `2`: the scan found missed mutations, the baseline did not complete cleanly, or
-  no repair was verified. A scan that finds a missed mutation is not a transport
-  failure.
+- `2`: the scan found missed mutations, the baseline did not complete cleanly, a
+  mutation was inconclusive (timeout, error, or untested), or no repair was
+  verified. A scan that finds a missed mutation is not a transport failure.
 
 `check` needs a configured model when it reaches a repair. `scan` works without
 one. See `docs/alan-workflow.md` for a full session script.

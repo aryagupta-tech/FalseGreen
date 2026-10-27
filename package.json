@@ -15,6 +15,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "cli": "node bin/falsegreen.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "demo": "node scripts/demo.js"

@@ -10,6 +10,7 @@ build/
 *.log
 .DS_Store
 coverage/
+falsegreen-artifacts/
 .vercel/
 /.swc
 

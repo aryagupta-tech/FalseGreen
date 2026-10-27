@@ -9,6 +9,7 @@
 import { createServer } from "node:http";
 
 const port = Number(process.argv[2]) || 8899;
+let requests = 0;
 
 function proposalFor(body) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
@@ -39,7 +40,7 @@ function proposalFor(body) {
 const server = createServer((request, response) => {
   if (request.method === "GET" && request.url === "/health") {
     response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify({ ok: true }));
+    response.end(JSON.stringify({ ok: true, requests }));
     return;
   }
   if (request.method !== "POST" || !request.url.endsWith("/chat/completions")) {
@@ -52,6 +53,7 @@ const server = createServer((request, response) => {
     raw += chunk;
   });
   request.on("end", () => {
+    requests += 1;
     let body = {};
     try {
       body = JSON.parse(raw);
@@ -61,6 +63,7 @@ const server = createServer((request, response) => {
       return;
     }
     const mode = process.env.STUB_MODE || "valid";
+    if (mode === "hang") return;
     if (mode === "invalid") {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(
