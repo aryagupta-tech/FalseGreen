@@ -1,0 +1,16 @@
+node_modules/
+.next/
+src/app/.well-known/
+out/
+build/
+.falsegreen-data/
+.env
+.env.local
+.env*.local
+*.log
+.DS_Store
+coverage/
+.vercel/
+/.swc
+
+.swc/

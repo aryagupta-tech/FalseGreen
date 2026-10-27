@@ -1,0 +1,36 @@
+services:
+  falsegreen:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      NEXT_TELEMETRY_DISABLED: "1"
+      EXECUTION_DRIVER: ${EXECUTION_DRIVER:-local}
+      STORE_DRIVER: ${STORE_DRIVER:-file}
+      FG_DATA_DIR: /data
+      MODEL_DRIVER: ${MODEL_DRIVER:-}
+      MODEL_API_BASE_URL: ${MODEL_API_BASE_URL:-}
+      MODEL_API_KEY: ${MODEL_API_KEY:-}
+      MODEL_ID: ${MODEL_ID:-}
+    volumes:
+      - falsegreen-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/config').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  falsegreen-data:
