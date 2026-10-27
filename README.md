@@ -135,7 +135,8 @@ requirement is the only source of intent.
 
 ## Quick start
 
-Targets Node 24 and npm. The repository does not declare `engines`, so pin the
+Targets Node 24 and npm. `package.json` declares `engines: { "node": ">=20.9" }`;
+the Docker image and CI use Node 24. Pin the
 runtime in your environment.
 
 ```bash
