@@ -56,6 +56,10 @@ export function createSandboxRunner(config, deps = {}) {
           networkPolicy: "deny-all",
           ports: [],
           timeout: Math.max(60000, effectiveTimeoutMs + 30000),
+          // Stopping a sandbox creates an automatic snapshot. Each one is the
+          // size of the base image, so leaving them alive exhausts the Hobby
+          // snapshot quota within a few scans. Expire them immediately.
+          snapshotExpiration: 1000,
         });
 
         if (typeof sandbox.fs?.mkdir === "function") {
